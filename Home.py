@@ -89,5 +89,12 @@ Ao alterar os filtros, os gráficos serão automaticamente atualizados.
         if 'City' in df.columns:
             cidades = df['City'].unique()
             st.write(f"**Cidades:** {len(cidades)}")
+
+    st.markdown("---")
+    st.markdown("## 🔗 Link do Repositório")
+    st.markdown("""
+O código completo deste trabalho está disponível: 
+[https://github.com/oguustavo/trabalho-final-prog.git](https://github.com/oguustavo/trabalho-final-prog.git)
+""")
 else:
     st.error("não deu")
