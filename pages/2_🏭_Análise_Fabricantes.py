@@ -1,20 +1,17 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-import plotly.graph_objects as go
-from plotly.subplots import make_subplots
 
 st.set_page_config(layout="wide")
 
 st.title("🏭 Análise Detalhada por Fabricantes")
 
-
+@st.cache_data
 def load_data():
     df = pd.read_csv('Electric_Vehicle_Population_Data.csv')
     return df
 
 df = load_data()
-
 
 st.sidebar.header("🔧 Filtros para Fabricantes")
 
@@ -24,7 +21,6 @@ if 'Make' in df.columns:
         "Selecione um Fabricante:",
         fabricantes
     )
-    
     if fabricante_selecionado != 'Todos':
         df_filtrado = df[df['Make'] == fabricante_selecionado]
     else:
@@ -34,102 +30,60 @@ else:
 
 if 'Model Year' in df_filtrado.columns:
     df_filtrado['Model Year'] = pd.to_numeric(df_filtrado['Model Year'], errors='coerce')
-    anos_fabricante = sorted(df_filtrado['Model Year'].dropna().unique())
-    
-    if len(anos_fabricante) > 0:
-        ano_inicio = st.sidebar.selectbox(
-            "Ano de Início:",
-            anos_fabricante,
-            index=0
-        )
-        
-        ano_fim = st.sidebar.selectbox(
-            "Ano de Fim:",
-            anos_fabricante,
-            index=len(anos_fabricante)-1
-        )
-        
-        df_filtrado = df_filtrado[
-            (df_filtrado['Model Year'] >= ano_inicio) & 
-            (df_filtrado['Model Year'] <= ano_fim)
-        ]
-
 
 st.sidebar.write("---")
 st.sidebar.info(f"📊 **Registros:** {df_filtrado.shape[0]:,}")
 
-
-
-
-st.subheader("📈 Evolução do Fabricante ao Longo do Tempo")
-if 'Model Year' in df_filtrado.columns and not df_filtrado.empty:
-    evolucao_fabricante = df_filtrado['Model Year'].value_counts().sort_index().reset_index()
-    evolucao_fabricante.columns = ['Ano', 'Quantidade']
-    
-    fig1 = px.line(
-        evolucao_fabricante,
-        x='Ano',
+# Gráfico 1: Evolução dos 3 principais modelos do fabricante ao longo dos anos (barras agrupadas)
+st.subheader("📈 Evolução dos 3 Principais Modelos ao Longo do Tempo")
+if 'Model Year' in df_filtrado.columns and 'Model' in df_filtrado.columns and not df_filtrado.empty:
+    top3_modelos = df_filtrado['Model'].value_counts().head(3).index.tolist()
+    df_top3 = df_filtrado[df_filtrado['Model'].isin(top3_modelos)]
+    evolucao_modelos = df_top3.groupby(['Model Year', 'Model']).size().reset_index(name='Quantidade')
+    fig1 = px.bar(
+        evolucao_modelos,
+        x='Model Year',
         y='Quantidade',
-        title=f'Evolução de {fabricante_selecionado} ao Longo dos Anos',
-        markers=True,
-        line_shape='linear'
-    )
-    fig1.update_layout(
-        xaxis_title="Ano do Modelo",
-        yaxis_title="Número de Veículos"
+        color='Model',
+        barmode='group',
+        title=f'Evolução dos 3 Principais Modelos de {fabricante_selecionado}'
     )
     st.plotly_chart(fig1, use_container_width=True)
 
-
+# Gráfico 2: Tipos de veículos por fabricante (barras horizontais)
 st.subheader("🔋 Tipos de Veículos por Fabricante")
 if 'Electric Vehicle Type' in df_filtrado.columns and not df_filtrado.empty:
     tipos_fabricante = df_filtrado['Electric Vehicle Type'].value_counts().reset_index()
     tipos_fabricante.columns = ['Tipo', 'Quantidade']
-    
-    fig2 = px.pie(
+    fig2 = px.bar(
         tipos_fabricante,
-        values='Quantidade',
-        names='Tipo',
+        x='Quantidade',
+        y='Tipo',
+        orientation='h',
         title=f'Distribuição de Tipos de Veículos - {fabricante_selecionado}',
-        hole=0.4
+        color='Tipo'
     )
     st.plotly_chart(fig2, use_container_width=True)
 
-st.subheader("🚗 Top 10 Modelos do Fabricante")
-if 'Model' in df_filtrado.columns and not df_filtrado.empty:
-    modelos_fabricante = df_filtrado['Model'].value_counts().head(10).reset_index()
-    modelos_fabricante.columns = ['Modelo', 'Quantidade']
-    
-    fig3 = px.bar(
-        modelos_fabricante,
-        x='Modelo',
-        y='Quantidade',
-        title=f'Top 10 Modelos - {fabricante_selecionado}',
-        color='Quantidade',
-        color_continuous_scale='plasma'
-    )
-    fig3.update_layout(xaxis_tickangle=-45)
-    st.plotly_chart(fig3, use_container_width=True)
 
 
+# Gráfico 4: Comparação entre fabricantes (dispersão)
 if fabricante_selecionado == 'Todos':
-    st.subheader("🏆 Comparação entre Fabricantes")
-    
-    
-    top_15_fabricantes = df_filtrado['Make'].value_counts().head(15).reset_index()
-    top_15_fabricantes.columns = ['Fabricante', 'Quantidade']
-    
-    fig4 = px.bar(
-        top_15_fabricantes,
-        x='Fabricante',
-        y='Quantidade',
-        title='Top 15 Fabricantes de Veículos Elétricos',
-        color='Quantidade',
-        color_continuous_scale='viridis'
-    )
-    fig4.update_layout(xaxis_tickangle=-45)
-    st.plotly_chart(fig4, use_container_width=True)
-
-
-
-
+    st.subheader("🏆 Comparação entre Fabricantes (Dispersão)")
+    if 'Make' in df_filtrado.columns and 'Model Year' in df_filtrado.columns:
+        fabricantes = df_filtrado.groupby('Make').agg(
+            Quantidade=('Make', 'count'),
+            AnoMedio=('Model Year', 'mean')
+        ).reset_index()
+        top_15 = fabricantes.nlargest(15, 'Quantidade')
+        fig4 = px.scatter(
+            top_15,
+            x='AnoMedio',
+            y='Quantidade',
+            text='Make',
+            size='Quantidade',
+            color='Quantidade',
+            title='Top 15 Fabricantes: Quantidade x Ano Médio'
+        )
+        fig4.update_traces(textposition='top center')
+        st.plotly_chart(fig4, use_container_width=True)
